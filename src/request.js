@@ -1,172 +1,188 @@
-import urljoin from 'url-join'
-
+import urljoin from "url-join";
 import {
   AuthenticationRequiredError,
-  InvalidOperationError
-} from './exceptions'
-import { encodeQueryString } from './helpers'
-import doHttpRequest from './http'
-import Response from './response'
+  InvalidOperationError,
+} from "./exceptions";
+import { encodeQueryString, fixNumbers } from "./helpers";
+import doHttpRequest from "./http";
+import Response from "./response";
 
 export default class Request {
-  constructor (
+  constructor(
     client,
-    resource = '',
-    verb = 'get',
+    resource = "",
+    verb = "get",
     payload = null,
     headers = {},
     queryString = [],
-    encoding = 'json',
+    encoding = "json",
     withCredentials = true,
     errorHandlers = {},
     ModelClass = null
   ) {
-    this.resource = resource
-    this.client = client
-    this.verb = verb
-    this.payload = payload
-    this.headers = headers
-    this.queryString = queryString
-    this.encoding = encoding
-    this.postProcessor = null
-    this.xhrWithCredentials = withCredentials
-    this.errorHandlers = errorHandlers
-    this.ModelClass = ModelClass
+    this.resource = resource;
+    this.client = client;
+    this.verb = verb;
+    this.payload = payload;
+    this.headers = headers;
+    this.queryString = queryString;
+    this.encoding = encoding;
+    this.postProcessor = null;
+    this.xhrWithCredentials = withCredentials;
+    this.errorHandlers = errorHandlers;
+    this.ModelClass = ModelClass;
   }
 
-  setPostProcessor (processor) {
-    this.postProcessor = processor
-    return this
+  setPostProcessor(processor) {
+    this.postProcessor = processor;
+    return this;
   }
 
-  setVerb (verb) {
-    this.verb = verb
-    return this
+  setVerb(verb) {
+    this.verb = verb;
+    return this;
   }
 
-  setEncoding (encoding) {
-    this.encoding = encoding
-    return this
+  setEncoding(encoding) {
+    this.encoding = encoding;
+    return this;
   }
 
-  setModelClass (ModelClass) {
-    this.ModelClass = ModelClass
-    return this
+  setModelClass(ModelClass) {
+    this.ModelClass = ModelClass;
+    return this;
   }
 
-  setErrorHandlers (errorHandlers) {
-    this.errorHandlers = errorHandlers
-    return this
+  setErrorHandlers(errorHandlers) {
+    this.errorHandlers = errorHandlers;
+    return this;
   }
 
-  addAuthenticationHeaders (force = false) {
+  addAuthenticationHeaders(force = false) {
     if (this.client.authenticator.authenticated) {
-      this.client.authenticator.addAuthenticationHeaders(this)
+      this.client.authenticator.addAuthenticationHeaders(this);
     } else if (force) {
-      throw new AuthenticationRequiredError()
+      throw new AuthenticationRequiredError();
     }
-    return this
+    return this;
   }
 
-  addHeader (name, value) {
-    return this.addHeaders({ [name]: value })
+  addHeader(name, value) {
+    const fixedValue = fixNumbers(value);
+    return this.addHeaders({ [name]: fixedValue });
   }
 
-  addHeaders (headers) {
-    Object.assign(this.headers, headers)
-    return this
+  addHeaders(headers) {
+    let fixedHeaders = {};
+    for (const key in headers) {
+      if (headers.hasOwnProperty(key)) {
+        const element = headers[key];
+        fixedHeaders[key] = fixNumbers(element);
+      }
+    }
+    Object.assign(this.headers, fixedHeaders);
+    return this;
   }
 
-  addParameter (name, value) {
-    return this.addParameters({ [name]: value })
+  addParameter(name, value) {
+    const fixedValue = fixNumbers(value);
+    return this.addParameters({ [name]: fixedValue });
   }
 
-  addParameters (parameters) {
-    this.payload = Object.assign({}, this.payload, parameters)
-    return this
+  addParameters(parameters) {
+    let fixedParameters = {};
+    for (const key in parameters) {
+      if (parameters.hasOwnProperty(key)) {
+        const element = parameters[key];
+        fixedParameters[key] = fixNumbers(element);
+      }
+    }
+    this.payload = Object.assign({}, this.payload, fixedParameters);
+    return this;
   }
 
-  addQueryString (key, value, allowDuplicatedKeys = false) {
+  addQueryString(key, value, allowDuplicatedKeys = false) {
     if (value === null) {
-      value = '\0'
+      value = "\0";
     }
-    let found = false
+    const fixedValue = fixNumbers(value);
+    let found = false;
     if (!allowDuplicatedKeys) {
       for (let i of this.queryString) {
         if (key === i[0]) {
-          i[1] = value
-          found = true
-          break
+          i[1] = fixedValue;
+          found = true;
+          break;
         }
       }
     }
     if (!found) {
-      this.queryString.push([key, value])
+      this.queryString.push([key, fixedValue]);
     }
-    return this
+    return this;
   }
 
-  filter (field, expression) {
+  filter(field, expression) {
     if (field === undefined) {
-      return this
+      return this;
     }
 
-    if (typeof field === 'object') {
+    if (typeof field === "object") {
       for (let i in field) {
-        this.addQueryString(i, field[i], true)
+        this.addQueryString(i, field[i], true);
       }
     } else {
-      this.addQueryString(field, expression, true)
+      this.addQueryString(field, expression, true);
     }
-    return this
+    return this;
   }
 
-  take (take) {
-    this.addQueryString('take', take)
-    return this
+  take(take) {
+    this.addQueryString("take", take);
+    return this;
   }
 
-  skip (skip) {
-    this.addQueryString('skip', skip)
-    return this
+  skip(skip) {
+    this.addQueryString("skip", skip);
+    return this;
   }
 
-  sort (sort) {
-    this.addQueryString('sort', sort)
-    return this
+  sort(sort) {
+    this.addQueryString("sort", sort);
+    return this;
   }
 
-  get url () {
-    return urljoin(this.client.baseUrl, this.resource)
+  get url() {
+    return urljoin(this.client.baseUrl, this.resource);
   }
 
-  composeUrl () {
-    let url = this.url
+  composeUrl() {
+    let url = this.url;
     if (this.queryString.length) {
-      url += `?${encodeQueryString(this.queryString)}`
+      url += `?${encodeQueryString(this.queryString)}`;
     }
-    return url
+    return url;
   }
 
-  withCredentials () {
+  withCredentials() {
     if (this.xhrWithCredentials) {
-      throw new InvalidOperationError()
+      throw new InvalidOperationError();
     }
-    this.xhrWithCredentials = true
+    this.xhrWithCredentials = true;
   }
 
-  withoutCredentials () {
+  withoutCredentials() {
     if (!this.xhrWithCredentials) {
-      throw new InvalidOperationError()
+      throw new InvalidOperationError();
     }
-    this.xhrWithCredentials = false
+    this.xhrWithCredentials = false;
   }
 
-  responseFactory (...args) {
-    return Response.fromXhr(this, ...args)
+  responseFactory(...args) {
+    return Response.fromXhr(this, ...args);
   }
 
-  send () {
+  send() {
     return doHttpRequest(
       this.composeUrl(),
       {
@@ -177,11 +193,11 @@ export default class Request {
         postProcessor: this.postProcessor,
         xhrWithCredentials: this.xhrWithCredentials,
         errorHandlers: this.errorHandlers,
-        onResponse: this.client.onResponse.bind(this.client)
+        onResponse: this.client.onResponse.bind(this.client),
       },
       (...args) => {
-        return this.responseFactory(...args)
+        return this.responseFactory(...args);
       }
-    )
+    );
   }
 }
